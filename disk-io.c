@@ -966,9 +966,13 @@ int btrfs_setup_all_roots(struct btrfs_fs_info *fs_info, u64 root_tree_bytenr,
 					  fs_info->free_space_root);
 		if (ret) {
 			printk("Couldn't read free space tree\n");
-			return -EIO;
+			if (!(flags & OPEN_CTREE_PARTIAL))
+				return -EIO;
+			free(fs_info->free_space_root);
+			fs_info->free_space_root = NULL;
+		} else {
+			fs_info->free_space_root->track_dirty = 1;
 		}
-		fs_info->free_space_root->track_dirty = 1;
 	}
 
 	ret = find_and_setup_log_root(root, fs_info, sb);
@@ -988,6 +992,7 @@ int btrfs_setup_all_roots(struct btrfs_fs_info *fs_info, u64 root_tree_bytenr,
 		 * restoring or creating the filesystem, where it's expected,
 		 * anything else is error
 		 */
+		printk("Couldn't read block groups\n");
 		if (ret != -ENOENT)
 			return -EIO;
 	}
