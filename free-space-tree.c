@@ -1187,9 +1187,13 @@ int btrfs_clear_free_space_tree(struct btrfs_fs_info *fs_info)
 	int ret;
 	u64 features;
 
-	trans = btrfs_start_transaction(tree_root, 0);
-	if (IS_ERR(trans))
-		return PTR_ERR(trans);
+	if (free_space_root) {
+		trans = btrfs_start_transaction(tree_root, 0);
+		if (IS_ERR(trans))
+			return PTR_ERR(trans);
+	} else {
+		printk("XXX: btrfs_clear_free_space_tree: free_space_root not present, doing black magic\n");
+	}
 
 	features = btrfs_super_compat_ro_flags(fs_info->super_copy);
 	features &= ~(BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE_VALID |
@@ -1197,29 +1201,33 @@ int btrfs_clear_free_space_tree(struct btrfs_fs_info *fs_info)
 	btrfs_set_super_compat_ro_flags(fs_info->super_copy, features);
 	fs_info->free_space_root = NULL;
 
-	ret = clear_free_space_tree(trans, free_space_root);
-	if (ret)
-		goto abort;
+	if (free_space_root) {
+		ret = clear_free_space_tree(trans, free_space_root);
+		if (ret)
+			goto abort;
 
-	ret = btrfs_del_root(trans, tree_root, &free_space_root->root_key);
-	if (ret)
-		goto abort;
+		ret = btrfs_del_root(trans, tree_root, &free_space_root->root_key);
+		if (ret)
+			goto abort;
 
-	list_del(&free_space_root->dirty_list);
+		list_del(&free_space_root->dirty_list);
 
-	ret = clean_tree_block(free_space_root->node);
-	if (ret)
-		goto abort;
-	ret = btrfs_free_tree_block(trans, free_space_root,
-				    free_space_root->node, 0, 1);
-	if (ret)
-		goto abort;
+		ret = clean_tree_block(free_space_root->node);
+		if (ret)
+			goto abort;
+		ret = btrfs_free_tree_block(trans, free_space_root,
+					    free_space_root->node, 0, 1);
+		if (ret)
+			goto abort;
 
-	free_extent_buffer(free_space_root->node);
-	free_extent_buffer(free_space_root->commit_root);
-	kfree(free_space_root);
+		free_extent_buffer(free_space_root->node);
+		free_extent_buffer(free_space_root->commit_root);
+		kfree(free_space_root);
 
-	ret = btrfs_commit_transaction(trans, tree_root);
+		ret = btrfs_commit_transaction(trans, tree_root);
+	} else {
+		ret = write_all_supers(fs_info);
+	}
 
 abort:
 	return ret;
