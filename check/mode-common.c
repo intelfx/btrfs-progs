@@ -664,8 +664,9 @@ static int traverse_tree_blocks(struct btrfs_fs_info *fs_info,
 			 */
 			tmp = read_tree_block(fs_info, bytenr, 0);
 			if (!extent_buffer_uptodate(tmp)) {
-				fprintf(stderr, "Error reading root block\n");
-				return -EIO;
+				fprintf(stderr, "Error reading root block -- continuing\n");
+				free_extent_buffer(tmp);
+				continue;
 			}
 			ret = traverse_tree_blocks(fs_info, tmp, 0, pin);
 			free_extent_buffer(tmp);
